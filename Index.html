@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semáforo de Ruído</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #121212;
+      color: #ffffff;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .semaforo {
+      background-color: #333;
+      padding: 20px;
+      border-radius: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    }
+
+    .luz {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background-color: #111;
+      opacity: 0.2;
+      transition: opacity 0.2s, box-shadow 0.2s;
+    }
+
+    .vermelho { background-color: #ff3b30; }
+    .amarelo { background-color: #ffcc00; }
+    .verde { background-color: #34c759; }
+
+    /* Estilos quando a luz está acesa */
+    .vermelho.ativo {
+      opacity: 1;
+      box-shadow: 0 0 30px #ff3b30;
+    }
+    .amarelo.ativo {
+      opacity: 1;
+      box-shadow: 0 0 30px #ffcc00;
+    }
+    .verde.ativo {
+      opacity: 1;
+      box-shadow: 0 0 30px #34c759;
+    }
+
+    button {
+      margin-top: 30px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 20px;
+      background-color: #007aff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .status {
+      margin-top: 15px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Semáforo de Ruído</h1>
+
+  <div class="semaforo">
+    <div id="luzVermelha" class="luz vermelho"></div>
+    <div id="luzAmarela" class="luz amarelo"></div>
+    <div id="luzVerde" class="luz verde"></div>
+  </div>
+
+  <button id="btnIniciar">Iniciar Microfone</button>
+  <div id="statusText" class="status">Clique no botão para começar</div>
+
+  <script>
+    const luzVermelha = document.getElementById('luzVermelha');
+    const luzAmarela = document.getElementById('luzAmarela');
+    const luzVerde = document.getElementById('luzVerde');
+    const btnIniciar = document.getElementById('btnIniciar');
+    const statusText = document.getElementById('statusText');
+
+    let audioContext;
+    let analyser;
+    let microphone;
+    let javascriptNode;
+
+    btnIniciar.addEventListener('click', async () => {
+      try {
+        // Solicita acesso ao microfone
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        microphone = audioContext.createMediaStreamSource(stream);
+        javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+        analyser.smoothingTimeConstant = 0.8;
+        analyser.fftSize = 1024;
+
+        microphone.connect(analyser);
+        analyser.connect(javascriptNode);
+        javascriptNode.connect(audioContext.destination);
+
+        javascriptNode.onaudioprocess = () => {
+          const array = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(array);
+          
+          let values = 0;
+          const length = array.length;
+          for (let i = 0; i < length; i++) {
+            values += array[i];
+          }
+
+          // Média de volume capturada pelo microfone
+          const average = values / length;
+
+          atualizarSemaforo(average);
+        };
+
+        btnIniciar.style.display = 'none';
+        statusText.innerText = 'Medindo ruído...';
+
+      } catch (err) {
+        alert('Permissão de microfone negada ou não suportada.');
+        console.error(err);
+      }
+    });
+
+    function atualizarSemaforo(volume) {
+      // Limpa todas as luzes
+      luzVermelha.classList.remove('ativo');
+      luzAmarela.classList.remove('ativo');
+      luzVerde.classList.remove('ativo');
+
+      // Limites de volume (Ajuste conforme a sensibilidade desejada)
+      if (volume < 15) {
+        // Ruído Baixo / Normal
+        luzVerde.classList.add('ativo');
+        statusText.innerText = 'Ambiente Silencioso (Verde)';
+      } else if (volume >= 15 && volume < 35) {
+        // Ruído Moderado
+        luzAmarela.classList.add('ativo');
+        statusText.innerText = 'Ruído Moderado (Amarelo)';
+      } else {
+        // Ruído Alto
+        luzVermelha.classList.add('ativo');
+        statusText.innerText = 'Muito Barulho! (Vermelho)';
+      }
+    }
+  </script>
+</body>
+</html>
